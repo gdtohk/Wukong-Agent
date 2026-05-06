@@ -85,9 +85,9 @@ HTML_TEMPLATE = """
 
     {% if not logged_in %}
     <div class="login-container">
-        <h1>⚙️ 二郎神 控制中心</h1>
+        <h1>Erlang Shen Control Center</h1>
         <form method="POST" action="/login">
-            <h3>🔒 系統已鎖定，請登入：</h3>
+            <h3>系統已鎖定，請登入：</h3>
             <input type="password" name="pwd" id="pwdInput" placeholder="請輸入管理員密碼..." required autofocus>
             <div style="text-align: right; margin-top: -10px; margin-bottom: 15px;">
                 <label style="font-size: 14px; color: #5f6368; cursor: pointer;">
@@ -122,7 +122,7 @@ HTML_TEMPLATE = """
             <span class="close-btn" onclick="document.getElementById('settingsModal').style.display='none'">&times;</span>
             <h1>⚙️ Configuration Panel</h1>
             <form method="POST" action="/save">
-                <h3>📝 編輯 .env 設定檔：</h3>
+                <h3>編輯 .env 設定檔：</h3>
                 
                 <!-- 新增：快速模型切換視窗 -->
                 <div class="model-selector">
