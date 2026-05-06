@@ -85,7 +85,7 @@ HTML_TEMPLATE = """
 
     {% if not logged_in %}
     <div class="login-container">
-        <h1>Erlang Shen Control Center</h1>
+        <h1>ErlangShen Control Center</h1>
         <form method="POST" action="/login">
             <h3>系統已鎖定，請登入：</h3>
             <input type="password" name="pwd" id="pwdInput" placeholder="請輸入管理員密碼..." required autofocus>
