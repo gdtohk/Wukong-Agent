@@ -4,8 +4,6 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
-import speech_recognition as sr
-from pydub import AudioSegment
 import edge_tts
 import re
 from registry import GET_TOOLS_LIST, AGENT_TOOLS_REGISTRY
@@ -74,18 +72,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if update.message.voice:
         is_voice = True
-        status_msg = await update.message.reply_text("🎧 努力聽緊...")
+        status_msg = await update.message.reply_text("🎧 正在將原聲語音橋接至大腦...")
         try:
             voice_file = await update.message.voice.get_file()
             await voice_file.download_to_drive(temp_ogg)
-            AudioSegment.from_file(temp_ogg).export(temp_wav, format="wav")
-            with sr.AudioFile(temp_wav) as source:
-                content_payload = sr.Recognizer().recognize_google(sr.Recognizer().record(source), language="yue-Hant-HK")
-            await status_msg.edit_text(f"🗣️ 你講咗：\n「{content_payload}」")
-        except: return await status_msg.edit_text("❌ 聽唔清楚。")
+            
+            # 🌟 核心升級：讀取原始 OGG 錄音檔並轉成 Base64
+            with open(temp_ogg, "rb") as f:
+                audio_bytes = f.read()
+            audio_b64 = base64.b64encode(audio_bytes).decode('utf-8')
+            
+            # 🌟 Gemini 原生語音橋接：利用 data URI 格式，將音檔封裝成多模態陣列交給 API
+            content_payload = [
+                {"type": "text", "text": "【系統提示】：老闆發送了一段語音訊息，請直接聆聽原聲並回答。"},
+                {"type": "image_url", "image_url": {"url": f"data:audio/ogg;base64,{audio_b64}"}}
+            ]
+            await status_msg.edit_text("🗣️ 語音原聲已傳送至大腦，思考中...")
+        except Exception as e: 
+            return await status_msg.edit_text(f"❌ 語音橋接失敗：{str(e)}")
         finally:
             if os.path.exists(temp_ogg): os.remove(temp_ogg)
-            if os.path.exists(temp_wav): os.remove(temp_wav)
+            if os.path.exists(temp_wav): os.remove(temp_wav) # 預防性清理，以防舊檔案殘留
             
     elif update.message.photo:
         await context.bot.send_chat_action(chat_id=chat_id, action='typing')
@@ -119,13 +126,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     content_payload.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}})
                 await status_msg.edit_text("✅ 圖紙高清轉換完成，正在進行大腦視覺解析...")
                 
-            # 🌟 核心修改：解鎖 .xlsm 同 .xltm 等巨集格式
             elif file_ext in ['.xlsx', '.xls', '.xlsm', '.xltm']: 
                 extracted_content = pd.read_excel(current_file_path).to_markdown(index=False)
                 content_payload = f"【Excel 數據內容】：\n{extracted_content}\n\n【老闆指令】：{update.message.caption or '請分析以上表格數據'}"
                 await status_msg.edit_text("✅ Excel/BBS 表格讀取完成。")
                 
-            # 🌟 新增：溫柔拒絕 ZIP 檔，教老闆正確做法
             elif file_ext == '.zip':
                 return await status_msg.edit_text("❌ 系統安全限制：不支援直接解壓 .zip 檔案。請老闆喺電腦解壓後，將 PDF 或 Excel 直接掟畀我。")
                 
