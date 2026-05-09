@@ -1,6 +1,6 @@
 import random
 import os, json, base64, logging, aiohttp, datetime, pandas as pd, fitz
-import asyncio  # 🌟 新增：用於處理超時防卡死
+import asyncio  # 🌟 用於處理超時防卡死
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from telegram import Update
@@ -117,7 +117,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await status_msg.edit_text(f"📐 正在將圖紙 (共 {max_pages} 頁) 轉換為高清視覺矩陣...")
                 for page_num in range(max_pages):
                     page = doc_fitz[page_num]
-                    # 🌟 核心修復 1：智能降頻。將 Matrix 由 2.0 降至 1.5，有效防止記憶體溢出 (OOM)
                     zoom_matrix = fitz.Matrix(1.5, 1.5)
                     pix = page.get_pixmap(matrix=zoom_matrix)
                     img_bytes = pix.tobytes("jpeg")
@@ -144,14 +143,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         content_payload = update.message.text or ""
 
     force_voice = False
-    text_to_check = ""
-    if isinstance(content_payload, str):
-        text_to_check = content_payload
-    elif isinstance(content_payload, list):
-        text_to_check = " ".join([str(item.get("text", "")) for item in content_payload if item.get("type") == "text"])
     
-    if any(keyword in text_to_check.lower() for keyword in ["語音", "语音", "voice"]):
-        force_voice = True
+    # 🌟 核心修復：語音指令「瞞天過海」攔截機制
+    if isinstance(content_payload, str):
+        if any(keyword in content_payload.lower() for keyword in ["語音", "语音", "voice"]):
+            force_voice = True
+            # 將「語音」等字眼從發給 AI 的 Prompt 中刪除，防止 AI 嘗試生成錄音檔
+            content_payload = re.sub(r'(用)?(語音|语音|voice)(回答|回覆|讀出)?', '', content_payload, flags=re.IGNORECASE).strip()
+            if not content_payload: content_payload = "請詳細解答。"
+            
+    elif isinstance(content_payload, list):
+        for item in content_payload:
+            if item.get("type") == "text":
+                if any(keyword in item["text"].lower() for keyword in ["語音", "语音", "voice"]):
+                    force_voice = True
+                    item["text"] = re.sub(r'(用)?(語音|语音|voice)(回答|回覆|讀出)?', '', item["text"], flags=re.IGNORECASE).strip()
+                    if not item["text"]: item["text"] = "請詳細解答。"
 
     local_time = datetime.datetime.now(ZoneInfo(TIMEZONE_STR))
     
@@ -199,7 +206,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             headers["x-goog-api-key"] = current_key
 
         try:
-            # 🌟 核心修復 2：加入強制超時機制 (90秒)，防止大腦無限期卡死
             api_timeout = aiohttp.ClientTimeout(total=90)
             async with aiohttp.ClientSession(timeout=api_timeout) as session:
                 post_req = session.post(current_url, headers=headers, json=temp_payload)
@@ -296,7 +302,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     success = True
                     break
         
-        # 🌟 核心修復 2 延續：優雅地捕捉並報告超時錯誤
         except asyncio.TimeoutError:
             node_name = "官方節點" if "googleapis.com" in current_url else "CPAMC節點"
             error_msg_list.append(f"[{node_name}] 失敗: 連線超時 (超過90秒)。代理伺服器無法消化過大數據。")
@@ -323,13 +328,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_voice or force_voice:
         if not final_reply.startswith("⚠️ [系統攔截]"):
             try:
-                tts_text = final_reply.replace("*", "").replace("#", "").replace("_", "")
-                communicate = edge_tts.Communicate(tts_text, "zh-HK-WanLungNeural")
-                await communicate.save(reply_mp3)
-                with open(reply_mp3, "rb") as vo: 
-                    await update.message.reply_voice(voice=vo)
-                if os.path.exists(reply_mp3):
-                    os.remove(reply_mp3)
+                # 🌟 核心修復：強化語音淨化器 (清除 Markdown 及系統字眼，防止哽死發聲引擎)
+                tts_text = re.sub(r'\[系統報告：[^\]]+\]', '', final_reply) # 刪除工具報告字眼
+                tts_text = re.sub(r'[*#_`~]', '', tts_text) # 清除 Markdown 特殊符號
+                tts_text = re.sub(r'https?://[^\s]+', '網址連結', tts_text) # 將 URL 讀成「網址連結」
+                tts_text = tts_text.strip()
+                
+                if tts_text:
+                    communicate = edge_tts.Communicate(tts_text, "zh-HK-WanLungNeural")
+                    await communicate.save(reply_mp3)
+                    with open(reply_mp3, "rb") as vo: 
+                        await update.message.reply_voice(voice=vo)
+                    if os.path.exists(reply_mp3):
+                        os.remove(reply_mp3)
             except Exception as e: 
                 print(f"TTS 發生錯誤: {e}")
                 pass
