@@ -1,5 +1,6 @@
 import random
 import os, json, base64, logging, aiohttp, datetime, pandas as pd, fitz
+import asyncio  # 🌟 新增：用於處理超時防卡死
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from telegram import Update
@@ -116,7 +117,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await status_msg.edit_text(f"📐 正在將圖紙 (共 {max_pages} 頁) 轉換為高清視覺矩陣...")
                 for page_num in range(max_pages):
                     page = doc_fitz[page_num]
-                    zoom_matrix = fitz.Matrix(2.0, 2.0)
+                    # 🌟 核心修復 1：智能降頻。將 Matrix 由 2.0 降至 1.5，有效防止記憶體溢出 (OOM)
+                    zoom_matrix = fitz.Matrix(1.5, 1.5)
                     pix = page.get_pixmap(matrix=zoom_matrix)
                     img_bytes = pix.tobytes("jpeg")
                     b64_img = base64.b64encode(img_bytes).decode('utf-8')
@@ -176,7 +178,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         temp_memory = list(user_memory[user_id])
         
-        # 🌟 核心升級：加入 Safety Override，強制免疫道德審查
         temp_payload = {
             "model": GEMINI_MODEL, 
             "messages": temp_memory, 
@@ -198,11 +199,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             headers["x-goog-api-key"] = current_key
 
         try:
-            async with aiohttp.ClientSession() as session:
-                # 🚀 嘗試發送帶有安全豁免嘅請求
+            # 🌟 核心修復 2：加入強制超時機制 (90秒)，防止大腦無限期卡死
+            api_timeout = aiohttp.ClientTimeout(total=90)
+            async with aiohttp.ClientSession(timeout=api_timeout) as session:
                 post_req = session.post(current_url, headers=headers, json=temp_payload)
                 async with post_req as response:
-                    # 如果代理伺服器唔支援 safetySettings 導致 400 報錯，自動移除並降級重試
                     if response.status == 400:
                         temp_payload.pop("safetySettings", None)
                         async with session.post(current_url, headers=headers, json=temp_payload) as retry_response:
@@ -272,7 +273,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                         temp_payload["messages"] = temp_memory
                         
-                        # 工具執行完，將結果交回大腦（同樣帶上安全豁免）
                         async with session.post(current_url, headers=headers, json=temp_payload) as res2:
                             if res2.status == 400 and "safetySettings" in temp_payload:
                                 temp_payload.pop("safetySettings", None)
@@ -295,7 +295,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     user_memory[user_id] = temp_memory
                     success = True
                     break
-                    
+        
+        # 🌟 核心修復 2 延續：優雅地捕捉並報告超時錯誤
+        except asyncio.TimeoutError:
+            node_name = "官方節點" if "googleapis.com" in current_url else "CPAMC節點"
+            error_msg_list.append(f"[{node_name}] 失敗: 連線超時 (超過90秒)。代理伺服器無法消化過大數據。")
+            continue
         except Exception as e:
             node_name = "官方節點" if "googleapis.com" in current_url else "CPAMC節點"
             error_msg_list.append(f"[{node_name}] 失敗: {str(e)}")
