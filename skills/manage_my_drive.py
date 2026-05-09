@@ -40,8 +40,9 @@ async def manage_my_drive(chat_id, context, path: str = "", mode: str = "text") 
                 if mode == "visual":
                     text = f"【👁️ 視覺模式啟動：{safe_path} (共 {total_pages} 頁)】\n"
                     images_b64 = []
-                    # 為防止 API 載荷過大，視覺模式暫時限制讀取前 3 頁
-                    max_pages = min(3, total_pages) 
+                    
+                    # 🌟 修復：解除 3 頁限制，放寬到 10 頁，等二郎神可以睇晒 8 頁嘅積王！
+                    max_pages = min(10, total_pages) 
                     for i in range(max_pages):  
                         page = doc[i]
                         zoom_matrix = fitz.Matrix(1.5, 1.5) # 智能降頻 1.5倍
@@ -52,7 +53,7 @@ async def manage_my_drive(chat_id, context, path: str = "", mode: str = "text") 
                         
                     return json.dumps({
                         "type": "pdf_with_images",
-                        "text": text + "已在底層將圖紙渲染為高清圖片，並成功橋接至視覺大腦。",
+                        "text": text + f"已在底層將圖紙前 {max_pages} 頁渲染為高清圖片，並成功橋接至視覺大腦。",
                         "images_base64": images_b64
                     })
                     
@@ -60,7 +61,8 @@ async def manage_my_drive(chat_id, context, path: str = "", mode: str = "text") 
                 else:
                     text = f"【📝 文字模式 PDF：{safe_path} (共 {total_pages} 頁)】\n"
                     raw_content = ""
-                    for i in range(min(5, total_pages)):  
+                    # 文字模式同樣可以放寬到前 10 頁
+                    for i in range(min(10, total_pages)):  
                         raw_content += doc[i].get_text("text")
                     
                     clean_content = re.sub(r'\n+', '\n', raw_content)
