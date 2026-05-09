@@ -3,7 +3,7 @@ import asyncio
 import aiohttp
 import xml.etree.ElementTree as ET
 from playwright.async_api import async_playwright
-import json
+import json 
 import base64
 import urllib.parse
 import os
@@ -132,6 +132,9 @@ AGENT_TOOLS_REGISTRY = {
     "scrape_webpage_text": create_tool(read_webpage_with_jina, "scrape_webpage_text", "使用 Jina API 極速讀取網頁純文字內容。適合用來閱讀新聞、文章、文檔等大量文字嘅網址。", {"url": {"type": "string"}}, ["url"]),
     "save_agent_experience": create_tool(save_agent_experience, "save_agent_experience", "儲存重要的工作經驗、規範或老闆的糾正指示到長期記憶庫中。當老闆要求你『記住』某事時調用。", {"content": {"type": "string"}}, ["content"]), # 🌟 新增：註冊記憶工具
     "deep_research": create_tool(perform_deep_research, "deep_research", "針對複雜問題進行深度研究與分析。當老闆要求寫報告、做詳細對比、或搜查多個網頁資料時，必須使用此工具一炮過獲取完整數據。", {"query": {"type": "string"}}, ["query"]), # 🌟 新增：深度研究工具
-    "manage_my_drive": create_tool(manage_my_drive, "manage_my_drive", "瀏覽掛載的 Google Drive 資料夾，或提取當中的 PDF/Excel/CSV/Txt 文件內容。當老闆要求讀取、分析或尋找雲端硬碟(my_drive)裡的文件時必須調用此工具。", {"path": {"type": "string", "description": "文件或資料夾的相對路徑。留空代表根目錄。例如：'Kwu Tung North' 或 '落标扎铁要求.pdf'"}}, ["path"]) # 🌟 新增：雲端硬碟讀取技能
+    "manage_my_drive": create_tool(manage_my_drive, "manage_my_drive", "瀏覽掛載的 Google Drive 資料夾，或提取當中的 PDF/Excel/CSV/Txt 文件內容。當老闆要求讀取雲端硬碟(my_drive)裡的文件時必須調用此工具。", {
+        "path": {"type": "string", "description": "文件或資料夾的相對路徑。留空代表根目錄。例如：'Kwu Tung North' 或 '落标扎铁要求.pdf'"},
+        "mode": {"type": "string", "description": "【核心指令】：'text' 代表純文字提取（極速，適合文字章程）；'visual' 代表將圖紙轉化為圖片供視覺分析（極致細節，適合含有工程圖則 Drawings、大樣圖、搭接長度表、表格等情況）。若老闆指示「看圖」、「視覺」或文件含有圖紙表格，必須使用 'visual'。", "enum": ["text", "visual"]}
+    }, ["path"]) # 🌟 更新：雲端硬碟加入視覺模式
 }
 GET_TOOLS_LIST = [tool["schema"] for tool in AGENT_TOOLS_REGISTRY.values()]
