@@ -59,9 +59,10 @@ HTML_TEMPLATE = """
         
         /* 模型切換標籤樣式 */
         .model-selector { margin-bottom: 15px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e0e0e0; }
-        .model-tags { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .model-tags { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 5px; margin-bottom: 15px;}
         .model-tag { background: white; border: 1px solid #ccc; padding: 8px 14px; border-radius: 20px; font-size: 14px; cursor: pointer; color: #333; transition: 0.2s; font-family: monospace; }
         .model-tag:hover { background: #e8f0fe; border-color: #1a73e8; color: #1a73e8; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .model-category { font-size: 13px; color: #666; font-weight: bold; margin-top: 10px; margin-bottom: 5px; border-left: 3px solid #1a73e8; padding-left: 8px; }
         
         /* 表單元素 */
         textarea { width: 100%; height: 300px; font-family: 'Courier New', Courier, monospace; font-size: 14px; padding: 15px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
@@ -100,7 +101,6 @@ HTML_TEMPLATE = """
     {% else %}
     
     <div class="chat-container">
-        <!-- 包含 Setting 按鈕、頭像與標題嘅完美 Header -->
         <div class="chat-header">
             <button class="header-setting-btn" onclick="document.getElementById('settingsModal').style.display='block'">⚙️ Setting</button>
             <img src="https://raw.githubusercontent.com/gdtohk/ErlangShen-Agent/main/ErlangShen_logo.png" alt="二郎神" style="height: 50px; width: 50px; border-radius: 50%; object-fit: cover; background: white; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.5);">
@@ -124,14 +124,29 @@ HTML_TEMPLATE = """
             <form method="POST" action="/save">
                 <h3>📝 編輯 .env 設定檔：</h3>
                 
-                <!-- 新增：快速模型切換視窗 -->
                 <div class="model-selector">
                     <strong style="color: #444; font-size: 15px;">✨ 快速切換模型 (點擊自動替換下方文字)：</strong>
+                    
+                    <div class="model-category">🧠 GPT / Claude 系列</div>
+                    <div class="model-tags">
+                        <span class="model-tag" onclick="replaceModel(this, 'gpt-oss-120b-medium')">gpt-oss-120b-medium</span>
+                        <span class="model-tag" onclick="replaceModel(this, 'claude-opus-4-6-thinking')">claude-opus-4-6-thinking</span>
+                        <span class="model-tag" onclick="replaceModel(this, 'claude-sonnet-4-6')">claude-sonnet-4-6</span>
+                    </div>
+
+                    <div class="model-category">✨ Gemini 系列</div>
                     <div class="model-tags">
                         <span class="model-tag" onclick="replaceModel(this, 'gemini-3.1-pro-preview')">gemini-3.1-pro-preview</span>
-                        <span class="model-tag" onclick="replaceModel(this, 'gemini-3.1-flash-lite-preview')">gemini-3.1-flash-lite-preview</span>
                         <span class="model-tag" onclick="replaceModel(this, 'gemini-3-pro-preview')">gemini-3-pro-preview</span>
+                        <span class="model-tag" onclick="replaceModel(this, 'gemini-3.1-flash-lite-preview')">gemini-3.1-flash-lite-preview</span>
+                        <span class="model-tag" onclick="replaceModel(this, 'gemini-3.1-flash-lite')">gemini-3.1-flash-lite</span>
                         <span class="model-tag" onclick="replaceModel(this, 'gemini-3-flash-preview')">gemini-3-flash-preview</span>
+                        <span class="model-tag" onclick="replaceModel(this, 'gemini-3-flash')">gemini-3-flash</span>
+                        <span class="model-tag" onclick="replaceModel(this, 'gemini-3.1-pro-low')">gemini-3.1-pro-low</span>
+                        <span class="model-tag" onclick="replaceModel(this, 'gemini-3-pro-low')">gemini-3-pro-low</span>
+                        <span class="model-tag" onclick="replaceModel(this, 'gemini-3-pro-high')">gemini-3-pro-high</span>
+                        <span class="model-tag" onclick="replaceModel(this, 'gemini-3.1-flash-image')">gemini-3.1-flash-image</span>
+                        <span class="model-tag" onclick="replaceModel(this, 'gemini-pro-agent')">gemini-pro-agent</span>
                         <span class="model-tag" onclick="replaceModel(this, 'gemini-2.5-pro')">gemini-2.5-pro</span>
                         <span class="model-tag" onclick="replaceModel(this, 'gemini-2.5-flash')">gemini-2.5-flash</span>
                         <span class="model-tag" onclick="replaceModel(this, 'gemini-2.5-flash-lite')">gemini-2.5-flash-lite</span>
