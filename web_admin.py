@@ -119,7 +119,7 @@ HTML_TEMPLATE = """
         </div>
         
         <div class="chat-box" id="chatBox">
-            <div class="message msg-ai">老闆你好！ErlangShen 喺度。有咩我可以幫到你？</div>
+            <div class="message msg-ai">老闆你好！ErlangShen 喺度，有咩我可以幫到你？</div>
         </div>
         
         <div class="chat-input-area">
