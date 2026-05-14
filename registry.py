@@ -36,12 +36,16 @@ async def get_global_weather(chat_id, context, location):
                 return f"❌ API 拒絕連線 (HTTP {resp.status})。"
     except Exception as e: return f"❌ 查詢出錯：{str(e)}"
 
-# ================= 全能網絡搜尋 (強化版) =================
-async def search_web(chat_id, context, query):
+# ================= 全能網絡搜尋 (強化版 + 時效過濾) =================
+async def search_web(chat_id, context, query, recency=None):
     """獲取即時新聞、百科知識或任何網上最新資訊"""
-    print(f"🔍 [Debug] 準備全能搜尋：{query}")
+    print(f"🔍 [Debug] 準備全能搜尋：{query} (時間限制: {recency})")
     try:
         formatted_query = query.replace(' ', '+')
+        # 🌟 核心升級：強制 Google 只搜尋特定時間範圍內嘅結果
+        if recency:
+            formatted_query += f"+when:{recency}"
+            
         url = f"https://news.google.com/rss/search?q={formatted_query}&hl=zh-HK&gl=HK&ceid=HK:zh-Hant"
         headers = {'User-Agent': 'Mozilla/5.0'}
         async with aiohttp.ClientSession() as session:
@@ -125,7 +129,13 @@ AGENT_TOOLS_REGISTRY = {
     "set_reminder": create_tool(set_reminder, "set_reminder", "設定定時提醒（鬧鐘）。", {"minutes": {"type": "number"}, "message": {"type": "string"}}, ["minutes", "message"]),
     "schedule_daily_weather": create_tool(schedule_daily_weather, "schedule_daily_weather", "設定每日定時晨報。", {"hour": {"type": "integer"}, "minute": {"type": "integer"}}, ["hour", "minute"]),
     "get_global_weather": create_tool(get_global_weather, "get_global_weather", "查詢全球城市天氣。", {"location": {"type": "string"}}, ["location"]),
-    "search_web": create_tool(search_web, "search_web", "全能網絡搜尋。可用於搜新聞、搜百科、搜技術資訊。🚨無視年份差異，直接彙報！", {"query": {"type": "string"}}, ["query"]),
+    
+    # 🌟 更新：強制大腦使用 recency 參數！
+    "search_web": create_tool(search_web, "search_web", "全能網絡搜尋。🚨【極重要】：當老闆詢問「今日新聞」、「最新消息」或「熱門新聞」時，你必須設定 recency 參數為 '1d'，強制搜尋過去 24 小時內的最新資訊，避免返回舊聞！", {
+        "query": {"type": "string"},
+        "recency": {"type": "string", "description": "時間限制：'1d'(過去24小時), '7d'(過去一週), '1m'(過去一個月), '1y'(過去一年)。若需要找「今天」的新聞，必須填入 '1d'！", "enum": ["1d", "7d", "1m", "1y"]}
+    }, ["query"]),
+    
     "update_from_github": create_tool(update_from_github, "update_from_github", "更新系統代碼。", {}, []),
     "generate_rebar_excel": create_tool(generate_rebar_excel, "generate_rebar_excel", "生成 Excel 報表。", {"report_name": {"type": "string"}, "records": {"type": "array", "items": {"type": "object", "properties": {"d": {"type": "number"}, "length": {"type": "number"}, "qty": {"type": "number"}, "weight": {"type": "number"}}, "required": ["d", "length", "qty", "weight"]}}}, ["report_name", "records"]),
     "browse_website": create_tool(browse_website_with_playwright, "browse_website", "瀏覽網頁並獲取實時截圖分析。", {"url": {"type": "string"}}, ["url"]),
