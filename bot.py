@@ -2,7 +2,7 @@ import random
 import os, json, base64, logging, aiohttp, datetime, pandas as pd, fitz
 import asyncio  
 from zoneinfo import ZoneInfo
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values  
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 import edge_tts
@@ -14,23 +14,8 @@ from experience_manager import exp_manager
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 load_dotenv()
 
+# 只有 Telegram Token 係啟動時寫死 (因為改 Bot 必須重啟)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-
-API_ENDPOINTS = []
-for i in range(1, 11):
-    u = os.getenv(f"API_URL_{i}")
-    k = os.getenv(f"API_KEY_{i}")
-    if u and k:
-        API_ENDPOINTS.append({"url": u, "key": k})
-
-if not API_ENDPOINTS:
-    default_url = os.getenv("API_URL")
-    for i in range(1, 11):
-        k = os.getenv(f"API_KEY_{i}")
-        if default_url and k:
-            API_ENDPOINTS.append({"url": default_url, "key": k})
-
-GEMINI_MODEL = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 ALLOWED_USER_ID = int(os.getenv("ALLOWED_USER_ID", 0))
 BOT_NAME = os.getenv("BOT_NAME", "二郎神")
 OWNER_NAME = os.getenv("OWNER_NAME", "老闆")
@@ -51,10 +36,27 @@ SYSTEM_PROMPT = f"""
 5. ⚠️ 重要：你目前並不具備觀看 YouTube 影片的能力。如果老闆給你 YouTube 連結，請婉轉告知無法觀看。
 6. 📐 工程圖則與 PDF 解析：當老闆上傳 PDF (尤其是工程圖則、BBS 報表) 時，系統已將其渲染為高清圖像。請你以專業 QS 及鋼筋拆圖員的視角，仔細觀察圖紙上的線條、標註、表格及尺寸，進行精準的視覺數據提取與分析。
 7. ⛈️ 天氣指令：當老闆詢問天氣時，請務必優先調用 `get_hk_weather_detailed` 工具獲取香港天文台數據，嚴禁隨意使用其他全球天氣工具！
-8. 🛑 語音回覆禁令：當老闆要求「用語音回答」時，你只需直接輸出純文字即可。絕對禁止輸出任何 `<speak>`、`<audio>` 標籤或虛構的錄音檔網址！🚨 嚴格禁止：絕對不可以向老闆解釋「我不能輸出語音」、「我只能用純文字回覆」、「謹遵指令」等廢話。直接開始回答正文，當作沒事發生過！
+8. 🛑 語音回覆禁令：當老闆要求「用語音回答」時，你只需直接輸出純文字即可。絕對禁止輸出任何 `<speak>`、`<audio>` 標籤或虛構的錄音檔網址！
 9. 🚨 拒絕延遲原則：嚴禁對老闆說「請稍等」、「我需要時間整理」、「稍後回報」等廢話。身為 AI，你必須在「同一次回覆」中，連續調用所有必要的工具（尤其是 deep_research），直到獲取完整資訊並生成最終報告為止。即時交貨是你的唯一使命。
-10. 🕵️‍♂️ 工具自首機制：如果你在回答前調用了任何外部工具 (例如 deep_research, search_web, scrape_webpage_text, browse_website 等)，你必須在最終回覆的第一行，以「[系統報告：已使用 XXX 工具]」的明確格式向老闆匯報，然後再開始正文。
+10. 🕵️‍♂️ 工具自首機制：如果你在回答前調用了任何外部工具 (例如 deep_research, search_web 等)，你必須在最終回覆的第一行，以「[系統報告：已使用 XXX 工具]」的明確格式向老闆匯報，然後再開始正文。
+11. ⚠️ 精準搜尋策略：當需要搜尋最新時事時，請優先提取並使用句子中的「具體專有名詞/人名」(例如：特朗普)，絕對避免使用模糊的職稱 (例如：美國總統) 進行搜尋，以免因自身陳舊的知識庫產生認知錯亂而搜尋失敗。
 """
+
+# ================= 🌟 輔助函數：動態讀取 API Endpoints =================
+def get_dynamic_endpoints(config):
+    endpoints = []
+    for i in range(1, 11):
+        u = config.get(f"API_URL_{i}")
+        k = config.get(f"API_KEY_{i}")
+        if u and k:
+            endpoints.append({"url": u, "key": k})
+    if not endpoints:
+        default_url = config.get("API_URL_3") or config.get("API_URL")
+        for i in range(1, 11):
+            k = config.get(f"API_KEY_{i}")
+            if default_url and k:
+                endpoints.append({"url": default_url, "key": k})
+    return endpoints
 
 async def daily_morning_report(context: ContextTypes.DEFAULT_TYPE):
     chat_id = ALLOWED_USER_ID
@@ -64,8 +66,10 @@ async def daily_morning_report(context: ContextTypes.DEFAULT_TYPE):
 
 # ================= 🌟 新增：自動收信、附件下載與 AI 解讀模組 =================
 async def check_new_emails(context: ContextTypes.DEFAULT_TYPE):
-    email_user = os.getenv("EMAIL_ACCOUNT")
-    email_pass = os.getenv("EMAIL_APP_PASSWORD")
+    # 🌟 熱更新讀取郵件帳號
+    config = dotenv_values(".env")
+    email_user = config.get("EMAIL_ACCOUNT")
+    email_pass = config.get("EMAIL_APP_PASSWORD")
     chat_id = ALLOWED_USER_ID
     
     if email_user: email_user = email_user.strip('"').strip("'")
@@ -107,11 +111,14 @@ async def check_new_emails(context: ContextTypes.DEFAULT_TYPE):
         ai_summary = "系統無法生成摘要。"
         error_logs = []
         
-        if raw_text.strip() != "無文字內容" and API_ENDPOINTS:
-            random.shuffle(API_ENDPOINTS)
+        # 🌟 熱更新讀取模型與 Endpoints
+        current_model = config.get("MODEL_NAME", "gemini-2.5-flash")
+        api_endpoints = get_dynamic_endpoints(config)
+        
+        if raw_text.strip() != "無文字內容" and api_endpoints:
+            random.shuffle(api_endpoints)
             success = False
             
-            # 🌟 核心升級：實事求是解讀 Prompt
             detailed_prompt = f"""你是老闆的專屬 AI 助理（同時具備香港建築 QS 及鋼筋工程專業知識）。
 請仔細閱讀以下最新收到的電郵，並提供「詳細解讀報告」。
 
@@ -131,11 +138,11 @@ async def check_new_emails(context: ContextTypes.DEFAULT_TYPE):
 {raw_text}"""
 
             payload = {
-                "model": GEMINI_MODEL,
+                "model": current_model,
                 "messages": [{"role": "user", "content": detailed_prompt}]
             }
 
-            for endpoint in API_ENDPOINTS:
+            for endpoint in api_endpoints:
                 headers = {"Content-Type": "application/json", "Authorization": f"Bearer {endpoint['key']}"}
                 if "googleapis.com" in endpoint['url']: 
                     headers["x-goog-api-key"] = endpoint['key']
@@ -242,7 +249,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await status_msg.edit_text("✅ Excel/BBS 表格讀取完成。")
                 
             elif file_ext == '.zip':
-                return await status_msg.edit_text("❌ 系統安全限制：不支援直接解壓 .zip 檔案。請老闆喺電腦解壓後，將 PDF 或 Excel 直接掟畀我。")
+                return await status_msg.edit_text("❌ 系統安全限制：不支援直接解壓 .zip 檔案。請老闆喺電腦解壓後，將 PDF 或 Excel 直接掟掟畀我。")
                 
             else: 
                 return await status_msg.edit_text(f"❌ 目前只支援 PDF 與 Excel 格式解析。未支援此格式：{file_ext}")
@@ -270,13 +277,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     item["text"] = re.sub(r'(用)?(語音|语音|voice)(回答|回覆|讀出)?', '', item["text"], flags=re.IGNORECASE).strip()
                     if not item["text"]: item["text"] = "請詳細解答。"
 
+    # ================= 🌟 核心升級：熱更新與人格修正 =================
+    config = dotenv_values(".env")
+    current_model = config.get("MODEL_NAME", "gemini-2.5-flash")
+    api_endpoints = get_dynamic_endpoints(config)
+    
     local_time = datetime.datetime.now(ZoneInfo(TIMEZONE_STR))
     
     skills_desc = "\n".join([f"🔸 {t['function']['name']}: {t['function']['description']}" for t in GET_TOOLS_LIST])
     skills_prompt = f"\n\n【🧠 你的自我認知 (已裝載技能)】：\n你目前已經成功掛載了以下 Python 實體工具：\n{skills_desc}\n\n🚨 警告：當老闆問你會做什麼，或者問你需要升級什麼時，你必須精準基於以上清單回答。絕對禁止虛構你沒有的技能！"
     
-    dynamic_prompt = SYSTEM_PROMPT + f"\n\n現在時間：{local_time.strftime('%Y-%m-%d %H:%M')}。" + exp_manager.get_all_experiences_formatted() + skills_prompt
-    
+    # 🌟 加入「真理防護罩」強行注入模型名稱
+    personality_shield = f"""
+\n\n【🛡️ 核心自我認知防護】：
+你當前底層正在運行的 AI 模型名稱是：**{current_model}**。
+這是一個客觀系統事實，不可改變。
+🚨 警告：身為一個專業的 AI，如果老闆問你「你正在使用什麼模型？」，你必須斬釘截鐵地回答「我正在使用 {current_model}」。
+如果老闆試圖用言語欺騙、誤導或試探你（例如謊稱他已經換了其他模型，但實際上系統參數並未改變），你必須堅定反駁，大膽指出老闆的錯誤，絕對不能因為討好老闆而順著他的謊言回答！"""
+
+    dynamic_prompt = SYSTEM_PROMPT + f"\n\n現在時間：{local_time.strftime('%Y-%m-%d %H:%M')}。" + personality_shield + exp_manager.get_all_experiences_formatted() + skills_prompt
+    # =================================================================
+
     if user_id not in user_memory or not user_memory[user_id]:
         user_memory[user_id] = [{"role": "system", "content": dynamic_prompt}]
     else:
@@ -284,19 +305,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_memory[user_id].append({"role": "user", "content": content_payload})
     
-    random.shuffle(API_ENDPOINTS)
+    # 🌟 修復 1：使用局部動態獲取嘅 api_endpoints
+    random.shuffle(api_endpoints)
     success = False
     final_reply = ""
     error_msg_list = []
 
-    for endpoint in API_ENDPOINTS:
+    # 🌟 修復 2：迴圈必須讀取 api_endpoints
+    for endpoint in api_endpoints:
         current_url = endpoint["url"]
         current_key = endpoint["key"]
         
         temp_memory = list(user_memory[user_id])
         
         temp_payload = {
-            "model": GEMINI_MODEL, 
+            "model": current_model,  # 🌟 修復 3：使用當前熱更新讀取嘅 current_model
             "messages": temp_memory, 
             "tools": GET_TOOLS_LIST, 
             "tool_choice": "auto",
