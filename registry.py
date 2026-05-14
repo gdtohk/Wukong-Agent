@@ -18,6 +18,14 @@ from skills.system_ops import update_from_github
 from skills.research import perform_deep_research # 🌟 新增：引入深度研究
 from skills.manage_my_drive import manage_my_drive # 🌟 新增：引入雲端硬碟讀取技能
 
+# 🌟 新增：萬能解碼器，專治 \uXXXX 火星文
+def decode_unicode_text(text):
+    if not text: return ""
+    try:
+        return re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), text)
+    except:
+        return text
+
 # ================= 全球天氣查詢 =================
 async def get_global_weather(chat_id, context, location):
     print(f"🌍 [Debug] 準備查詢天氣：{location}")
@@ -36,13 +44,12 @@ async def get_global_weather(chat_id, context, location):
                 return f"❌ API 拒絕連線 (HTTP {resp.status})。"
     except Exception as e: return f"❌ 查詢出錯：{str(e)}"
 
-# ================= 全能網絡搜尋 (強化版 + 時效過濾) =================
+# ================= 全能網絡搜尋 (強化版 + 時效過濾 + 自動解碼) =================
 async def search_web(chat_id, context, query, recency=None):
     """獲取即時新聞、百科知識或任何網上最新資訊"""
     print(f"🔍 [Debug] 準備全能搜尋：{query} (時間限制: {recency})")
     try:
         formatted_query = query.replace(' ', '+')
-        # 🌟 核心升級：強制 Google 只搜尋特定時間範圍內嘅結果
         if recency:
             formatted_query += f"+when:{recency}"
             
@@ -57,8 +64,9 @@ async def search_web(chat_id, context, query, recency=None):
                 if not items: return f"❌ 搵唔到關於「{query}」嘅任何相關資訊。"
                 formatted_results = []
                 for item in items[:10]:
-                    title = item.findtext('title')
-                    pubDate = item.findtext('pubDate')
+                    # 🌟 核心修復：套用解碼器將 Unicode 轉為中文
+                    title = decode_unicode_text(item.findtext('title'))
+                    pubDate = decode_unicode_text(item.findtext('pubDate'))
                     formatted_results.append(f"📌 【{title}】\n🕒 發佈時間：{pubDate}")
                 return "以下係我為你搵到嘅相關資訊：\n\n" + "\n\n".join(formatted_results)
     except Exception as e: return f"❌ 搜尋出錯：{str(e)}"
@@ -129,13 +137,10 @@ AGENT_TOOLS_REGISTRY = {
     "set_reminder": create_tool(set_reminder, "set_reminder", "設定定時提醒（鬧鐘）。", {"minutes": {"type": "number"}, "message": {"type": "string"}}, ["minutes", "message"]),
     "schedule_daily_weather": create_tool(schedule_daily_weather, "schedule_daily_weather", "設定每日定時晨報。", {"hour": {"type": "integer"}, "minute": {"type": "integer"}}, ["hour", "minute"]),
     "get_global_weather": create_tool(get_global_weather, "get_global_weather", "查詢全球城市天氣。", {"location": {"type": "string"}}, ["location"]),
-    
-    # 🌟 更新：強制大腦使用 recency 參數！
     "search_web": create_tool(search_web, "search_web", "全能網絡搜尋。🚨【極重要】：當老闆詢問「今日新聞」、「最新消息」或「熱門新聞」時，你必須設定 recency 參數為 '1d'，強制搜尋過去 24 小時內的最新資訊，避免返回舊聞！", {
         "query": {"type": "string"},
         "recency": {"type": "string", "description": "時間限制：'1d'(過去24小時), '7d'(過去一週), '1m'(過去一個月), '1y'(過去一年)。若需要找「今天」的新聞，必須填入 '1d'！", "enum": ["1d", "7d", "1m", "1y"]}
     }, ["query"]),
-    
     "update_from_github": create_tool(update_from_github, "update_from_github", "更新系統代碼。", {}, []),
     "generate_rebar_excel": create_tool(generate_rebar_excel, "generate_rebar_excel", "生成 Excel 報表。", {"report_name": {"type": "string"}, "records": {"type": "array", "items": {"type": "object", "properties": {"d": {"type": "number"}, "length": {"type": "number"}, "qty": {"type": "number"}, "weight": {"type": "number"}}, "required": ["d", "length", "qty", "weight"]}}}, ["report_name", "records"]),
     "browse_website": create_tool(browse_website_with_playwright, "browse_website", "瀏覽網頁並獲取實時截圖分析。", {"url": {"type": "string"}}, ["url"]),
