@@ -168,10 +168,12 @@ HTML_TEMPLATE = """
                 <button type="submit" class="btn-save">💾 儲存並覆蓋設定</button>
             </form>
             <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
-            <form method="POST" action="/restart" onsubmit="return confirm('確定要強行重新啟動二郎神嗎？');">
-                <h3>🚀 系統操作：</h3>
-                <button type="submit" class="btn-restart">🔄 重新啟動 bot.py</button>
+            
+            <form method="POST" action="/restart" onsubmit="return confirm('確定要強行重新啟動二郎神嗎？(正常切換模型無需重啟)');">
+                <h3>🚀 系統操作 (緊急救援)：</h3>
+                <button type="submit" class="btn-restart">🔄 強制重新啟動 bot.py (正常換模型無需點擊)</button>
             </form>
+            
             <form method="POST" action="/clear_memory" onsubmit="return confirm('清除網頁版記憶體？');">
                 <button type="submit" style="background-color: #fbbc04; color: black; padding: 12px; width: 100%; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px;">🧠 清空網頁版記憶</button>
             </form>
@@ -298,7 +300,7 @@ def save():
     new_content = new_content.replace('\r\n', '\n')
     with open(ENV_PATH, "w", encoding="utf-8") as f:
         f.write(new_content)
-    flash("✅ 設定已儲存！請緊記點擊「重新啟動 bot.py」令新設定生效。")
+    flash("✅ 設定已儲存！系統已啟用「零秒熱更新」，Telegram 大腦會即秒切換，無需重啟！")
     return redirect('/?show_settings=1')
 
 @app.route('/restart', methods=['POST'])
@@ -307,7 +309,7 @@ def restart():
     try:
         os.system('pkill -f "python3 bot.py"')
         os.system('nohup python3 bot.py > agent.log 2>&1 &')
-        flash("🚀 前線大腦 (bot.py) 已成功重新啟動！")
+        flash("🚀 前線大腦 (bot.py) 已成功強制重新啟動！")
     except Exception as e:
         flash(f"❌ 重啟失敗：{str(e)}")
     return redirect('/?show_settings=1')
